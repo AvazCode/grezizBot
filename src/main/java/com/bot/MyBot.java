@@ -1,49 +1,87 @@
 package com.bot;
 
 import lombok.SneakyThrows;
-import lombok.experimental.StandardException;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.ArrayList;
-
-/**
- * Project name: grezizBot
- * Author: AvaZ
- * Data: 7/1/2024
- * Time: 1:41 PM
- **/
+import java.util.List;
 
 public class MyBot extends TelegramLongPollingBot {
-    // Create an ArrayList to store the user's message
-    ArrayList<String> userMessage = new ArrayList<>();
-    String userName;
+    List<TelegramUser> users = new ArrayList<>();
+
 
     @SneakyThrows
     @Override
     public void onUpdateReceived(Update update) {
+// Initial step with declaring ChatID and user message sender and catcher!
+        SendMessage messageSend = new SendMessage();
+        Message messageCome = update.getMessage();
+        Long chatId = messageCome.getChatId();
 
-            SendMessage messageSend = new SendMessage();
-            Message messageCome = update.getMessage();
-            Long chatId = messageCome.getChatId();
 
-            if(messageCome.getText().equals("/start")){
-                messageSend.setChatId(chatId);
-                messageSend.setText("Welcome our telegram bot !!! What's your name?");
+        TelegramUser currentUser = null;
+
+        currentUser = getCurrentUser(chatId, currentUser, messageSend);
+
+
+        if (messageCome.getText().equals("/start") || currentUser.getUserState().equals(UserState.START)) {
+            messageSend.setText("Welcome to our Telegram bot!\nWhat is your name?");
+            currentUser.setUserState(UserState.FIRST_NAME);
+        } else if (currentUser.getUserState().equals(UserState.FIRST_NAME)) {
+            currentUser.setFirstName(messageCome.getText());
+            messageSend.setText("Hello " + currentUser.getFirstName() + "\nWhat's your last name?");
+            currentUser.setUserState(UserState.LAST_NAME);
+        } else if (currentUser.getUserState().equals(UserState.LAST_NAME)) {
+            currentUser.setLastName(messageCome.getText());
+            messageSend.setText("What's your phone number?");
+            currentUser.setUserState(UserState.PHONE_NUMBER);
+        } else if (currentUser.getUserState().equals(UserState.PHONE_NUMBER)) {
+            if(messageCome.getText().startsWith("+998") && messageCome.getText().length()==13){
+                currentUser.setPhoneNumber(messageCome.getText());
+                messageSend.setText("What's your email address?");
+                currentUser.setUserState(UserState.EMAIL_ADDRESS);
             }else{
-                userName = messageCome.getText();
-                messageSend.setChatId(chatId);
-                messageSend.setText("Hi: "+userName);
+                messageSend.setText("Are you crazy !!! "+
+                        currentUser.getFirstName()+"\nIt's WRONG 😒"+
+                        "\nTry again -------------------------?");
             }
 
-            execute(messageSend);
+        } else if (currentUser.getUserState().equals(UserState.EMAIL_ADDRESS)) {
+            currentUser.setEmailAddress(messageCome.getText());
+            messageSend.setText("Congratulations! You have successfully logged in!\nWrite 'result' to see all information.");
+            currentUser.setUserState(UserState.OFF);
+        } else if (messageCome.getText().equals("result") &&
+                currentUser.getUserState().equals(UserState.OFF)) {
+            messageSend.setText(currentUser.toString());
+            System.out.println(currentUser);
+        } else {
+            messageSend.setText("Something went wrong! Wait for an admins' response. Thanks ❤️");
+        }
 
-
-
+        execute(messageSend);
     }
+
+    // This method tests current user position !
+    private TelegramUser getCurrentUser(Long chatId, TelegramUser currentUser, SendMessage messageSend) {
+        for (TelegramUser consumer : users) {
+            if(consumer.getID().equals(chatId)) {
+                currentUser = consumer;
+                messageSend.setChatId(chatId);
+                break;
+            }
+        }
+        if (currentUser == null) {
+            currentUser = new TelegramUser();
+            currentUser.setID(chatId);
+            messageSend.setChatId(chatId);
+            users.add(currentUser);
+        }
+        return currentUser;
+    }
+
 
     @Override
     public String getBotUsername() {
@@ -54,5 +92,4 @@ public class MyBot extends TelegramLongPollingBot {
     public String getBotToken() {
         return "6788773828:AAHS5JsuT3UGHNss8m_YL86Y4ne2gWmCumI";
     }
-
 }
